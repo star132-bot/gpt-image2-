@@ -26,17 +26,29 @@ async function readBody(req) {
 }
 
 async function runCurlJson(url, fetchOptions) {
+  const proxy = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
   const args = [
     '--silent',
     '--show-error',
     '--location',
+    '--fail-with-body',
+    '--retry',
+    '2',
+    '--retry-delay',
+    '2',
+    '--connect-timeout',
+    '30',
     '--max-time',
-    '300',
+    '600',
     '--write-out',
     '\n%{http_code}',
     '--request',
     fetchOptions.method ?? 'POST',
   ];
+
+  if (proxy) {
+    args.push('--proxy', proxy);
+  }
 
   for (const [key, value] of Object.entries(fetchOptions.headers ?? {})) {
     args.push('--header', `${key}: ${value}`);
@@ -94,6 +106,50 @@ async function requestUpstreamJson(request) {
   }
 }
 
+async function runCurlBuffer(url) {
+  const proxy = process.env.HTTPS_PROXY || process.env.https_proxy || process.env.HTTP_PROXY || process.env.http_proxy;
+  const args = [
+    '--silent',
+    '--show-error',
+    '--location',
+    '--fail',
+    '--retry',
+    '2',
+    '--retry-delay',
+    '2',
+    '--connect-timeout',
+    '30',
+    '--max-time',
+    '600',
+    url,
+  ];
+
+  if (proxy) {
+    args.splice(args.length - 1, 0, '--proxy', proxy);
+  }
+
+  return new Promise((resolve, reject) => {
+    const child = spawn('curl', args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: process.env,
+    });
+
+    const stdout = [];
+    const stderr = [];
+
+    child.stdout.on('data', (chunk) => stdout.push(chunk));
+    child.stderr.on('data', (chunk) => stderr.push(chunk));
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(Buffer.concat(stderr).toString('utf8') || `curl download exited with code ${code}`));
+        return;
+      }
+      resolve(Buffer.concat(stdout));
+    });
+  });
+}
+
 async function ensureOutputDir() {
   await fs.mkdir(outputDir, { recursive: true });
 }
@@ -109,14 +165,21 @@ async function saveImageFromResult(result, prompt) {
     return { filePath, filename, imagePath: `/generated/${filename}` };
   }
 
-  const response = await fetch(result.imageUrl);
-  if (!response.ok) {
-    throw new Error(`Failed to download generated image: ${response.status}`);
-  }
+  try {
+    const response = await fetch(result.imageUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to download generated image: ${response.status}`);
+    }
 
-  const bytes = Buffer.from(await response.arrayBuffer());
-  await fs.writeFile(filePath, bytes);
-  return { filePath, filename, imagePath: `/generated/${filename}` };
+    const bytes = Buffer.from(await response.arrayBuffer());
+    await fs.writeFile(filePath, bytes);
+    return { filePath, filename, imagePath: `/generated/${filename}` };
+  } catch (error) {
+    console.error(`[generate] node image download failed, retrying with curl: ${error instanceof Error ? error.message : String(error)}`);
+    const bytes = await runCurlBuffer(result.imageUrl);
+    await fs.writeFile(filePath, bytes);
+    return { filePath, filename, imagePath: `/generated/${filename}` };
+  }
 }
 
 async function handleGenerate(req, res) {
