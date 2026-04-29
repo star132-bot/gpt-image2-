@@ -174,7 +174,10 @@ async function handleSubmit(event) {
     outputLink.href = result.imageUrl;
     outputLink.hidden = false;
     promptBox.textContent = result.revisedPrompt || 'No revised prompt returned.';
-    statusBox.textContent = `Done. Saved to server: ${body.savedFilename}`;
+    const timingText = body.timings
+      ? `模型生成 ${(body.timings.upstreamMs / 1000).toFixed(1)} 秒，保存 ${(body.timings.saveMs / 1000).toFixed(1)} 秒，总计 ${(body.timings.totalMs / 1000).toFixed(1)} 秒。`
+      : '';
+    statusBox.textContent = `Done. Saved to server: ${body.savedFilename}${timingText ? ` | ${timingText}` : ''}`;
     latestImageUrl = result.imageUrl;
     latestDownloadName = body.savedFilename;
     downloadButton.hidden = false;

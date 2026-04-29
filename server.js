@@ -50,21 +50,32 @@ async function saveImageFromResult(result, prompt) {
 }
 
 async function handleGenerate(req, res) {
+  const startedAt = Date.now();
   try {
     const bodyText = await readBody(req);
     const body = JSON.parse(bodyText || '{}');
     const request = buildUpstreamRequest(body);
+    console.log(`[generate] start model=${body.model} size=${body.size} promptLength=${String(body.prompt ?? '').length}`);
+
+    const upstreamStartedAt = Date.now();
     const upstreamResponse = await fetch(request.url, request.fetchOptions);
+    const upstreamMs = Date.now() - upstreamStartedAt;
     const payload = await upstreamResponse.json();
+    console.log(`[generate] upstream finished status=${upstreamResponse.status} time=${upstreamMs}ms`);
 
     if (!upstreamResponse.ok) {
       const message = payload?.error?.message ?? `Upstream request failed with status ${upstreamResponse.status}`;
-      sendJson(res, upstreamResponse.status, { error: message });
+      sendJson(res, upstreamResponse.status, { error: message, upstreamMs });
       return;
     }
 
     const result = normalizeImageResponse(payload);
+    const saveStartedAt = Date.now();
     const saved = await saveImageFromResult(result, body.prompt);
+    const saveMs = Date.now() - saveStartedAt;
+    const totalMs = Date.now() - startedAt;
+    console.log(`[generate] saved filename=${saved.filename} save=${saveMs}ms total=${totalMs}ms`);
+
     const historyEntry = buildHistoryEntry({
       model: body.model,
       size: body.size,
@@ -77,9 +88,11 @@ async function handleGenerate(req, res) {
       imagePath: `/generated/${saved.filename}`,
       revisedPrompt: result.revisedPrompt,
       savedFilename: saved.filename,
+      timings: { upstreamMs, saveMs, totalMs },
       historyEntry,
     });
   } catch (error) {
+    console.error(`[generate] failed after ${Date.now() - startedAt}ms`, error);
     sendJson(res, 500, {
       error: error instanceof Error ? error.message : 'Unknown server error.',
     });
