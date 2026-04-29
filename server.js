@@ -207,15 +207,30 @@ async function handleGenerate(req, res) {
     let saved;
     let saveError = '';
 
-    try {
-      saved = await saveImageFromResult(result, body.prompt);
-    } catch (error) {
-      saveError = error instanceof Error ? error.message : 'Unknown save error.';
-      console.error(`[generate] image save failed, returning remote image instead: ${saveError}`);
+    if (result.format === 'url') {
       saved = {
-        filename: 'remote-image-not-saved.png',
+        filename: 'remote-image-saving-in-background.png',
         imagePath: result.imageUrl,
       };
+
+      saveImageFromResult(result, body.prompt)
+        .then((backgroundSaved) => {
+          console.log(`[generate] background saved filename=${backgroundSaved.filename}`);
+        })
+        .catch((error) => {
+          console.error(`[generate] background save failed: ${error instanceof Error ? error.message : String(error)}`);
+        });
+    } else {
+      try {
+        saved = await saveImageFromResult(result, body.prompt);
+      } catch (error) {
+        saveError = error instanceof Error ? error.message : 'Unknown save error.';
+        console.error(`[generate] image save failed, returning generated image instead: ${saveError}`);
+        saved = {
+          filename: 'remote-image-not-saved.png',
+          imagePath: result.imageUrl,
+        };
+      }
     }
 
     const saveMs = Date.now() - saveStartedAt;

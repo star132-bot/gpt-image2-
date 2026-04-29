@@ -13,6 +13,7 @@ const promptBox = hasDocument ? document.querySelector('#revised-prompt') : null
 const outputLink = hasDocument ? document.querySelector('#result-link') : null;
 const historyList = hasDocument ? document.querySelector('#history-list') : null;
 const downloadButton = hasDocument ? document.querySelector('#download-button') : null;
+const copyImageUrlButton = hasDocument ? document.querySelector('#copy-image-url') : null;
 const clearHistoryButton = hasDocument ? document.querySelector('#clear-history') : null;
 
 const STORAGE_KEY = 'gpt-image-window-config';
@@ -96,6 +97,7 @@ function renderHistory() {
       latestImageUrl = item.imagePath;
       latestDownloadName = item.imagePath.split('/').pop() || 'generated-image.png';
       downloadButton.hidden = false;
+      copyImageUrlButton.hidden = false;
     });
 
     li.append(button);
@@ -127,6 +129,20 @@ async function saveImageLocally() {
   link.click();
 }
 
+async function copyImageUrl() {
+  if (!latestImageUrl) {
+    statusBox.textContent = 'No image URL to copy yet.';
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(new URL(latestImageUrl, window.location.href).href);
+    statusBox.textContent = '图片地址已复制。';
+  } catch {
+    statusBox.textContent = latestImageUrl;
+  }
+}
+
 async function handleSubmit(event) {
   event.preventDefault();
   setLoading(true);
@@ -136,6 +152,7 @@ async function handleSubmit(event) {
   outputLink.hidden = true;
   promptBox.textContent = '';
   downloadButton.hidden = true;
+  copyImageUrlButton.hidden = true;
 
   try {
     if (sizeInput.value !== '1024x1024') {
@@ -192,6 +209,7 @@ async function handleSubmit(event) {
     latestImageUrl = result.imageUrl;
     latestDownloadName = body.savedFilename;
     downloadButton.hidden = false;
+    copyImageUrlButton.hidden = false;
     pushHistory(body.historyEntry);
   } catch (error) {
     statusBox.textContent = error instanceof Error ? error.message : 'Unknown error.';
@@ -205,6 +223,7 @@ if (form) {
   renderHistory();
   form.addEventListener('submit', handleSubmit);
   downloadButton.addEventListener('click', saveImageLocally);
+  copyImageUrlButton.addEventListener('click', copyImageUrl);
   clearHistoryButton.addEventListener('click', () => {
     localStorage.removeItem(HISTORY_KEY);
     renderHistory();
