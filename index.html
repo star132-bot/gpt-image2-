@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GPT Image 2 Window</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <section class="panel form-panel">
+      <h1>GPT Image 2 Window</h1>
+      <p class="subtitle">本地代理版窗口：不直接让浏览器请求远程图片接口，避免 CORS 问题。</p>
+
+      <form id="image-form">
+        <label>
+          API Key
+          <input id="api-key" type="password" placeholder="sk-..." autocomplete="off" required>
+        </label>
+
+        <label>
+          Base URL
+          <input id="base-url" type="text" value="https://ai.t8star.cn/v1" required>
+        </label>
+
+        <label>
+          Model
+          <input id="model" type="text" value="gpt-image-2" required>
+        </label>
+
+        <label>
+          Size
+          <select id="size">
+            <option value="1024x1024">1024x1024</option>
+            <option value="1536x1024">1536x1024</option>
+            <option value="1024x1536">1024x1536</option>
+          </select>
+        </label>
+
+        <label>
+          Prompt
+          <textarea id="prompt" rows="8" placeholder="例如：一个坐在窗边的白猫，日系插画风，暖色夕阳。" required></textarea>
+        </label>
+
+        <div class="action-row">
+          <button type="submit">Generate Image</button>
+          <button id="download-button" type="button" class="secondary-button" hidden>保存到本地</button>
+        </div>
+      </form>
+
+      <p id="status" class="status">准备就绪。</p>
+    </section>
+
+    <section class="panel preview-panel">
+      <h2>结果</h2>
+      <img id="result-image" alt="Generated result" hidden>
+      <a id="result-link" href="#" target="_blank" rel="noreferrer" hidden>Open image in new tab</a>
+
+      <div class="prompt-box">
+        <h3>Revised Prompt</h3>
+        <p id="revised-prompt">还没有结果。</p>
+      </div>
+    </section>
+
+    <section class="panel history-panel">
+      <div class="history-header">
+        <h2>历史记录</h2>
+        <button id="clear-history" type="button" class="secondary-button">清空</button>
+      </div>
+      <ul id="history-list" class="history-list"></ul>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "gpt-image-window",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "main": "desktop.js",
+  "scripts": {
+    "test": "node --test app.test.js",
+    "start": "node server.js",
+    "desktop": "node desktop.js"
+  }
+}
