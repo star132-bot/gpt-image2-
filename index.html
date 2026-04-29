@@ -31,10 +31,11 @@
         <label>
           Size
           <select id="size">
-            <option value="1024x1024">1024x1024</option>
-            <option value="1536x1024">1536x1024</option>
-            <option value="1024x1536">1024x1536</option>
+            <option value="1024x1024" selected>1024x1024 推荐，最稳定</option>
+            <option value="1536x1024">1536x1024 较慢，可能更容易断开</option>
+            <option value="1024x1536">1024x1536 较慢，可能更容易断开</option>
           </select>
+          <span class="field-help">如果遇到 fetch failed 或 curl 56，请先用 1024x1024 测试；大尺寸生成时间长，更容易被代理/服务端断开。</span>
         </label>
 
         <label>

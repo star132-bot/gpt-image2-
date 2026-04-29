@@ -138,6 +138,14 @@ async function handleSubmit(event) {
   downloadButton.hidden = true;
 
   try {
+    if (sizeInput.value !== '1024x1024') {
+      const confirmed = window.confirm('当前选择的是大尺寸图片，生成更慢，也更容易因为代理/服务端长连接断开而失败。建议先用 1024x1024 测试。确定继续吗？');
+      if (!confirmed) {
+        statusBox.textContent = '已取消。请改用 1024x1024 后再测试。';
+        return;
+      }
+    }
+
     const payload = buildProxyRequestPayload({
       apiKey: apiKeyInput.value,
       baseUrl: baseUrlInput.value,

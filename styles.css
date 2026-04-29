@@ -33,6 +33,7 @@ body {
 
 .subtitle,
 .status,
+.field-help,
 .prompt-box p,
 .history-button span,
 .history-button small,
@@ -49,6 +50,11 @@ label {
   display: grid;
   gap: 8px;
   font-size: 14px;
+}
+
+.field-help {
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 input,
