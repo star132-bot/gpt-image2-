@@ -2,6 +2,7 @@ import { buildHistoryEntry, buildUpstreamRequest, createSafeFilename, normalizeI
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import http from 'node:http';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -22,6 +23,75 @@ async function readBody(req) {
     chunks.push(chunk);
   }
   return Buffer.concat(chunks).toString('utf8');
+}
+
+async function runCurlJson(url, fetchOptions) {
+  const args = [
+    '--silent',
+    '--show-error',
+    '--location',
+    '--max-time',
+    '300',
+    '--write-out',
+    '\n%{http_code}',
+    '--request',
+    fetchOptions.method ?? 'POST',
+  ];
+
+  for (const [key, value] of Object.entries(fetchOptions.headers ?? {})) {
+    args.push('--header', `${key}: ${value}`);
+  }
+
+  args.push('--data', fetchOptions.body ?? '{}', url);
+
+  return new Promise((resolve, reject) => {
+    const child = spawn('curl', args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: process.env,
+    });
+
+    const stdout = [];
+    const stderr = [];
+
+    child.stdout.on('data', (chunk) => stdout.push(chunk));
+    child.stderr.on('data', (chunk) => stderr.push(chunk));
+    child.on('error', reject);
+    child.on('close', (code) => {
+      const text = Buffer.concat(stdout).toString('utf8');
+      const errText = Buffer.concat(stderr).toString('utf8');
+
+      if (code !== 0) {
+        reject(new Error(errText || `curl exited with code ${code}`));
+        return;
+      }
+
+      try {
+        const markerIndex = text.lastIndexOf('\n');
+        const bodyText = markerIndex >= 0 ? text.slice(0, markerIndex) : text;
+        const statusText = markerIndex >= 0 ? text.slice(markerIndex + 1).trim() : '200';
+        const status = Number(statusText) || 200;
+        resolve({ status, ok: status >= 200 && status < 300, payload: JSON.parse(bodyText), transport: 'curl' });
+      } catch (error) {
+        reject(new Error(`curl returned non-JSON response: ${text.slice(0, 300)}`));
+      }
+    });
+  });
+}
+
+async function requestUpstreamJson(request) {
+  try {
+    const response = await fetch(request.url, request.fetchOptions);
+    const payload = await response.json();
+    return {
+      status: response.status,
+      ok: response.ok,
+      payload,
+      transport: 'fetch',
+    };
+  } catch (error) {
+    console.error(`[generate] node fetch failed, retrying with curl: ${error instanceof Error ? error.message : String(error)}`);
+    return runCurlJson(request.url, request.fetchOptions);
+  }
 }
 
 async function ensureOutputDir() {
@@ -58,14 +128,14 @@ async function handleGenerate(req, res) {
     console.log(`[generate] start model=${body.model} size=${body.size} promptLength=${String(body.prompt ?? '').length}`);
 
     const upstreamStartedAt = Date.now();
-    const upstreamResponse = await fetch(request.url, request.fetchOptions);
+    const upstream = await requestUpstreamJson(request);
     const upstreamMs = Date.now() - upstreamStartedAt;
-    const payload = await upstreamResponse.json();
-    console.log(`[generate] upstream finished status=${upstreamResponse.status} time=${upstreamMs}ms`);
+    const payload = upstream.payload;
+    console.log(`[generate] upstream finished status=${upstream.status} transport=${upstream.transport} time=${upstreamMs}ms`);
 
-    if (!upstreamResponse.ok) {
-      const message = payload?.error?.message ?? `Upstream request failed with status ${upstreamResponse.status}`;
-      sendJson(res, upstreamResponse.status, { error: message, upstreamMs });
+    if (!upstream.ok) {
+      const message = payload?.error?.message ?? `Upstream request failed with status ${upstream.status}`;
+      sendJson(res, upstream.status, { error: message, upstreamMs, transport: upstream.transport });
       return;
     }
 
