@@ -36,7 +36,7 @@ async function saveImageFromResult(result, prompt) {
   if (result.format === 'base64') {
     const base64 = result.imageUrl.replace(/^data:image\/png;base64,/, '');
     await fs.writeFile(filePath, Buffer.from(base64, 'base64'));
-    return { filePath, filename };
+    return { filePath, filename, imagePath: `/generated/${filename}` };
   }
 
   const response = await fetch(result.imageUrl);
@@ -46,7 +46,7 @@ async function saveImageFromResult(result, prompt) {
 
   const bytes = Buffer.from(await response.arrayBuffer());
   await fs.writeFile(filePath, bytes);
-  return { filePath, filename };
+  return { filePath, filename, imagePath: `/generated/${filename}` };
 }
 
 async function handleGenerate(req, res) {
@@ -71,23 +71,37 @@ async function handleGenerate(req, res) {
 
     const result = normalizeImageResponse(payload);
     const saveStartedAt = Date.now();
-    const saved = await saveImageFromResult(result, body.prompt);
+    let saved;
+    let saveError = '';
+
+    try {
+      saved = await saveImageFromResult(result, body.prompt);
+    } catch (error) {
+      saveError = error instanceof Error ? error.message : 'Unknown save error.';
+      console.error(`[generate] image save failed, returning remote image instead: ${saveError}`);
+      saved = {
+        filename: 'remote-image-not-saved.png',
+        imagePath: result.imageUrl,
+      };
+    }
+
     const saveMs = Date.now() - saveStartedAt;
     const totalMs = Date.now() - startedAt;
-    console.log(`[generate] saved filename=${saved.filename} save=${saveMs}ms total=${totalMs}ms`);
+    console.log(`[generate] image ready filename=${saved.filename} save=${saveMs}ms total=${totalMs}ms saveError=${saveError || 'none'}`);
 
     const historyEntry = buildHistoryEntry({
       model: body.model,
       size: body.size,
       prompt: body.prompt,
-      imagePath: `/generated/${saved.filename}`,
+      imagePath: saved.imagePath,
       revisedPrompt: result.revisedPrompt,
     });
 
     sendJson(res, 200, {
-      imagePath: `/generated/${saved.filename}`,
+      imagePath: saved.imagePath,
       revisedPrompt: result.revisedPrompt,
       savedFilename: saved.filename,
+      saveError,
       timings: { upstreamMs, saveMs, totalMs },
       historyEntry,
     });

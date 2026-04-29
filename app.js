@@ -177,7 +177,10 @@ async function handleSubmit(event) {
     const timingText = body.timings
       ? `模型生成 ${(body.timings.upstreamMs / 1000).toFixed(1)} 秒，保存 ${(body.timings.saveMs / 1000).toFixed(1)} 秒，总计 ${(body.timings.totalMs / 1000).toFixed(1)} 秒。`
       : '';
-    statusBox.textContent = `Done. Saved to server: ${body.savedFilename}${timingText ? ` | ${timingText}` : ''}`;
+    const saveWarning = body.saveError
+      ? ` | 注意：远程图片已返回，但本地保存失败：${body.saveError}。已先显示远程图片，请立刻点 Open image in new tab 或保存。`
+      : '';
+    statusBox.textContent = `Done. Saved to server: ${body.savedFilename}${timingText ? ` | ${timingText}` : ''}${saveWarning}`;
     latestImageUrl = result.imageUrl;
     latestDownloadName = body.savedFilename;
     downloadButton.hidden = false;
