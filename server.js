@@ -95,13 +95,22 @@ function getContentType(filePath) {
 }
 
 async function handleStatic(req, res) {
-  const requestPath = req.url === '/' ? '/index.html' : req.url;
-  const safePath = path.normalize(requestPath).replace(/^(\.\.[/\\])+/, '');
-  const filePath = path.join(publicDir, safePath);
+  const parsedUrl = new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`);
+  const requestPath = parsedUrl.pathname === '/' ? '/index.html' : decodeURIComponent(parsedUrl.pathname);
+  const filePath = path.resolve(publicDir, `.${requestPath}`);
+
+  if (!filePath.startsWith(publicDir + path.sep) && filePath !== publicDir) {
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Forbidden');
+    return;
+  }
 
   try {
     const content = await fs.readFile(filePath);
-    res.writeHead(200, { 'Content-Type': getContentType(filePath) });
+    res.writeHead(200, {
+      'Content-Type': getContentType(filePath),
+      'Cache-Control': requestPath.startsWith('/generated/') ? 'no-store' : 'public, max-age=60',
+    });
     res.end(content);
   } catch {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
